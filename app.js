@@ -1,4 +1,4 @@
-/* Web App-форма v2: префилл и сохранение через локальный API бота (ngrok). */
+/* Web App-форма v3: префилл и сохранение через локальный API бота (ngrok). */
 const tg = window.Telegram.WebApp;
 const params = new URLSearchParams(location.search);
 const API = (params.get("api") || "").replace(/\/+$/, "");
@@ -38,7 +38,6 @@ const FORMS = {
       ["name", "Название личности *", "input", true, "Например: Женя-пират"],
       ["appearance", "Внешность", "textarea", false, "Как выглядит твой образ: одежда, телосложение, приметы..."],
       ["description", "Личность", "textarea", false, "Характер, привычки, предыстория этого образа..."],
-      ["speech_examples", "Характерные фразы образа", "textarea", false, "Как говорит твой образ: примеры реплик, фирменные фразы..."],
     ],
   },
 };
