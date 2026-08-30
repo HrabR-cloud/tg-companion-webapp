@@ -1,5 +1,6 @@
-/* Web App-форма v4: префилл, сохранение через локальный API бота (ngrok),
-   портреты персонажей/иллюстрации сценариев: показ, генерация, загрузка. */
+/* Web App-форма v5: префилл, сохранение через локальный API бота (ngrok),
+   портреты/иллюстрации: показ, генерация, загрузка (png/jpg/webp/gif).
+   Изображения грузятся через fetch+blob (обход страницы-заглушки ngrok). */
 const tg = window.Telegram.WebApp;
 const params = new URLSearchParams(location.search);
 const API = (params.get("api") || "").replace(/\/+$/, "");
@@ -60,6 +61,18 @@ for (const [key, label, kind, , ph] of form.fields) {
 
 // ==================== блок изображения (персонаж/сценарий, edit) ====================
 let imgEl = null;
+
+/** Грузит изображение через fetch (с заголовком) и показывает в форме. */
+async function showImage(url) {
+  const resp = await fetch(url, { headers: H });
+  if (!resp.ok) throw new Error("image http " + resp.status);
+  const blob = await resp.blob();
+  if (imgEl) {
+    imgEl.src = URL.createObjectURL(blob);
+    imgEl.style.display = "block";
+  }
+}
+
 if ((type === "character" || type === "scenario") && mode === "edit" && objId && API) {
   const imgBlock = document.createElement("div");
   imgBlock.className = "field";
@@ -73,7 +86,7 @@ if ((type === "character" || type === "scenario") && mode === "edit" && objId &&
       <label style="flex:1;padding:10px;border-radius:10px;margin:0;
         background:var(--tg-theme-button-color,#3390ec);
         color:var(--tg-theme-button-text-color,#fff);font-size:14px;text-align:center;">📤 Загрузить
-        <input type="file" accept="image/*" id="file_input" style="display:none;">
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/*" id="file_input" style="display:none;">
       </label>
     </div>`;
   const firstField = box.children[0];
@@ -93,8 +106,7 @@ if ((type === "character" || type === "scenario") && mode === "edit" && objId &&
       });
       const res = await resp.json();
       if (res.ok) {
-        imgEl.src = res.url + "&cb=" + Date.now();
-        imgEl.style.display = "block";
+        await showImage(res.url);
       } else {
         tg.showAlert(res.error || "Не удалось сгенерировать.");
       }
@@ -117,8 +129,7 @@ if ((type === "character" || type === "scenario") && mode === "edit" && objId &&
         { method: "POST", headers: H, body: fd });
       const res = await resp.json();
       if (res.ok) {
-        imgEl.src = res.url + "&cb=" + Date.now();
-        imgEl.style.display = "block";
+        await showImage(res.url);
       } else {
         tg.showAlert(res.error || "Не удалось загрузить.");
       }
@@ -141,8 +152,9 @@ if (mode === "edit" && objId && API) {
         if (v) document.getElementById("f_" + key).value = v;
       }
       if (imgEl && data.fields && data.fields.image_path) {
-        imgEl.src = `${API}/api/image?path=${encodeURIComponent(data.fields.image_path)}&token=${TOKEN}`;
-        imgEl.style.display = "block";
+        showImage(
+          `${API}/api/image?path=${encodeURIComponent(data.fields.image_path)}&token=${TOKEN}`
+        ).catch(() => {});
       }
     })
     .catch(() => tg.showAlert("Не удалось загрузить сохранённые данные. Бот и ngrok запущены?"));
