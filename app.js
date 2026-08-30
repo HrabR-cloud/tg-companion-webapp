@@ -62,12 +62,14 @@ for (const [key, label, kind, , ph] of form.fields) {
 // ==================== блок изображения (персонаж/сценарий, edit) ====================
 let imgEl = null;
 
-/** Грузит изображение через fetch (с заголовком) и показывает в форме. */
+/** Грузит изображение через fetch (с заголовком и без кэша) и показывает в форме. */
 async function showImage(url) {
-  const resp = await fetch(url, { headers: H });
+  const sep = url.includes("?") ? "&" : "?";
+  const resp = await fetch(url + sep + "cb=" + Date.now(), { headers: H, cache: "no-store" });
   if (!resp.ok) throw new Error("image http " + resp.status);
   const blob = await resp.blob();
   if (imgEl) {
+    if (imgEl.src.startsWith("blob:")) URL.revokeObjectURL(imgEl.src);
     imgEl.src = URL.createObjectURL(blob);
     imgEl.style.display = "block";
   }
