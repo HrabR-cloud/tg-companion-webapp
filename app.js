@@ -1,4 +1,5 @@
-/* Web App-форма v3: префилл и сохранение через локальный API бота (ngrok). */
+/* Web App-форма v4: префилл, сохранение через локальный API бота (ngrok),
+   портреты персонажей/иллюстрации сценариев: показ, генерация, загрузка. */
 const tg = window.Telegram.WebApp;
 const params = new URLSearchParams(location.search);
 const API = (params.get("api") || "").replace(/\/+$/, "");
@@ -57,10 +58,80 @@ for (const [key, label, kind, , ph] of form.fields) {
   box.appendChild(div);
 }
 
+// ==================== блок изображения (персонаж/сценарий, edit) ====================
+let imgEl = null;
+if ((type === "character" || type === "scenario") && mode === "edit" && objId && API) {
+  const imgBlock = document.createElement("div");
+  imgBlock.className = "field";
+  imgBlock.innerHTML = `
+    <label>Изображение</label>
+    <img id="cur_img" style="width:100%;border-radius:10px;display:none;margin-bottom:8px;">
+    <div style="display:flex;gap:8px;">
+      <button id="btn_gen" style="flex:1;padding:10px;border-radius:10px;border:none;
+        background:var(--tg-theme-button-color,#3390ec);
+        color:var(--tg-theme-button-text-color,#fff);font-size:14px;">🎨 Сгенерировать</button>
+      <label style="flex:1;padding:10px;border-radius:10px;margin:0;
+        background:var(--tg-theme-button-color,#3390ec);
+        color:var(--tg-theme-button-text-color,#fff);font-size:14px;text-align:center;">📤 Загрузить
+        <input type="file" accept="image/*" id="file_input" style="display:none;">
+      </label>
+    </div>`;
+  const firstField = box.children[0];
+  if (firstField) box.insertBefore(imgBlock, firstField.nextSibling);
+  else box.appendChild(imgBlock);
+  imgEl = imgBlock.querySelector("#cur_img");
+
+  imgBlock.querySelector("#btn_gen").onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "⏳ Генерация (до минуты)...";
+    try {
+      const resp = await fetch(`${API}/api/generate_image?token=${TOKEN}`, {
+        method: "POST",
+        headers: { ...H, "Content-Type": "application/json" },
+        body: JSON.stringify({ type, id: parseInt(objId, 10) }),
+      });
+      const res = await resp.json();
+      if (res.ok) {
+        imgEl.src = res.url + "&cb=" + Date.now();
+        imgEl.style.display = "block";
+      } else {
+        tg.showAlert(res.error || "Не удалось сгенерировать.");
+      }
+    } catch (err) {
+      tg.showAlert("Не удалось связаться с сервером. Бот и ngrok запущены?");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🎨 Сгенерировать";
+    }
+  };
+
+  imgBlock.querySelector("#file_input").onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append("file", f);
+    try {
+      const resp = await fetch(
+        `${API}/api/upload_image?type=${type}&id=${objId}&token=${TOKEN}`,
+        { method: "POST", headers: H, body: fd });
+      const res = await resp.json();
+      if (res.ok) {
+        imgEl.src = res.url + "&cb=" + Date.now();
+        imgEl.style.display = "block";
+      } else {
+        tg.showAlert(res.error || "Не удалось загрузить.");
+      }
+    } catch (err) {
+      tg.showAlert("Не удалось связаться с сервером. Бот и ngrok запущены?");
+    }
+  };
+}
+
 tg.ready();
 tg.expand();
 
-// ---- префилл при редактировании ----
+// ==================== префилл при редактировании ====================
 if (mode === "edit" && objId && API) {
   fetch(`${API}/api/prefill?type=${type}&id=${objId}&token=${TOKEN}`, { headers: H })
     .then(r => r.json())
@@ -69,10 +140,15 @@ if (mode === "edit" && objId && API) {
         const v = (data.fields || {})[key];
         if (v) document.getElementById("f_" + key).value = v;
       }
+      if (imgEl && data.fields && data.fields.image_path) {
+        imgEl.src = `${API}/api/image?path=${encodeURIComponent(data.fields.image_path)}&token=${TOKEN}`;
+        imgEl.style.display = "block";
+      }
     })
     .catch(() => tg.showAlert("Не удалось загрузить сохранённые данные. Бот и ngrok запущены?"));
 }
 
+// ==================== сохранение ====================
 tg.MainButton.text = "💾 Сохранить";
 tg.MainButton.show();
 tg.MainButton.onClick(async () => {
